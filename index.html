@@ -1,0 +1,1828 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Volumetría Teórica - Cabida OGUC</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-tertiary: #0f0f23;
+            --bg-panel: #1e1e3f;
+            --accent-primary: #00d4ff;
+            --accent-secondary: #7c3aed;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border-color: #334155;
+            --border-radius: 8px;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #app {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 100;
+        }
+
+        .file-warning {
+            background: rgba(245, 158, 11, 0.15);
+            border-bottom: 1px solid rgba(245, 158, 11, 0.4);
+            color: var(--accent-warning);
+            padding: 10px 20px;
+            font-size: 0.85rem;
+        }
+
+        .file-warning strong {
+            color: #fbbf24;
+        }
+
+        .header h1 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--accent-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header h1::before {
+            content: '◆';
+            color: var(--accent-secondary);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Main Container */
+        .main-container {
+            flex: 1;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 3D Viewport */
+        .viewport {
+            flex: 1;
+            position: relative;
+            background: var(--bg-tertiary);
+        }
+
+        #three-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Drawing Canvas Overlay */
+        #draw-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+            z-index: 10;
+        }
+
+        .draw-mode-active #draw-canvas {
+            pointer-events: auto;
+        }
+
+        .draw-mode-inactive #draw-canvas {
+            pointer-events: none;
+        }
+
+        /* Panels */
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: var(--bg-secondary);
+            padding: 12px 16px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-header .icon {
+            color: var(--accent-primary);
+        }
+
+        .panel-content {
+            padding: 16px;
+        }
+
+        /* Left Panel - Drawing Controls */
+        .left-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 280px;
+            z-index: 50;
+        }
+
+        /* Right Panel - Parameters */
+        .right-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+            max-height: calc(100vh - 140px);
+            overflow-y: auto;
+            z-index: 50;
+        }
+
+        .right-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .right-panel::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+        }
+
+        .right-panel::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+
+        /* Bottom Panel - Results */
+        .bottom-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+            min-width: 600px;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 12px;
+        }
+
+        .result-item {
+            text-align: center;
+            padding: 8px;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+        }
+
+        .result-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .result-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--accent-primary);
+        }
+
+        .result-unit {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-left: 2px;
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input[type="number"],
+        input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input[type="number"]:focus,
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.15);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--accent-primary);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .range-value {
+            min-width: 50px;
+            text-align: right;
+            font-size: 0.9rem;
+            color: var(--accent-primary);
+            font-weight: 500;
+        }
+
+        /* Checkbox Toggle */
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            transition: 0.3s;
+        }
+
+        .toggle-slider::before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 2px;
+            bottom: 2px;
+            background: var(--text-secondary);
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+
+        .toggle input:checked + .toggle-slider {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+        }
+
+        .toggle input:checked + .toggle-slider::before {
+            transform: translateX(20px);
+            background: white;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-secondary);
+            border-color: var(--accent-primary);
+        }
+
+        .btn-success {
+            background: var(--accent-success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-danger {
+            background: var(--accent-danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-warning {
+            background: var(--accent-warning);
+            color: #1a1a2e;
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-group .btn {
+            flex: 1;
+        }
+
+        /* Status Badge */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-badge.active {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent-success);
+        }
+
+        .status-badge.inactive {
+            background: rgba(100, 116, 139, 0.2);
+            color: var(--text-muted);
+        }
+
+        .status-badge.warning {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--accent-warning);
+        }
+
+        .status-badge.error {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--accent-danger);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        /* Drawing Instructions */
+        .draw-instructions {
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 16px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .draw-instructions strong {
+            color: var(--accent-primary);
+        }
+
+        /* Vertices List */
+        .vertices-list {
+            max-height: 120px;
+            overflow-y: auto;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            padding: 8px;
+            margin-top: 8px;
+        }
+
+        .vertex-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            font-family: 'Consolas', monospace;
+            color: var(--text-secondary);
+        }
+
+        .vertex-item:nth-child(even) {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        /* Divider */
+        .divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 16px 0;
+        }
+
+        /* Section Title */
+        .section-title {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Alert Messages */
+        .alert {
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: var(--accent-warning);
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: var(--accent-danger);
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: var(--accent-success);
+        }
+
+        /* Coordinate Display */
+        .coord-display {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-family: 'Consolas', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            z-index: 40;
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(26, 26, 46, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 16px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: relative;
+        }
+
+        .tooltip::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 6px 10px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .tooltip:hover::after {
+            opacity: 1;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .bottom-panel {
+                min-width: auto;
+                left: 20px;
+                right: 20px;
+                transform: none;
+            }
+
+            .results-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="file-warning" v-if="isFileProtocol">
+            <strong>Advertencia:</strong> Abre este archivo usando un servidor local (por ejemplo: <code>python -m http.server</code>) para que Chrome permita cargar módulos ES desde CDN.
+        </div>
+        <!-- Header -->
+        <header class="header">
+            <h1>Generador de Volumetría Teórica - Cabida OGUC</h1>
+            <div class="header-actions">
+                <span class="status-badge" :class="statusClass">
+                    <span class="status-dot"></span>
+                    {{ statusText }}
+                </span>
+            </div>
+        </header>
+
+        <!-- Main Container -->
+        <div class="main-container" :class="drawMode ? 'draw-mode-active' : 'draw-mode-inactive'">
+            <!-- 3D Viewport -->
+            <div class="viewport" ref="viewportRef">
+                <canvas id="three-canvas" ref="canvasRef"></canvas>
+                <canvas id="draw-canvas" ref="drawCanvasRef" 
+                        @click="onDrawClick" 
+                        @dblclick="onDrawDoubleClick"
+                        @mousemove="onDrawMouseMove"></canvas>
+            </div>
+
+            <!-- Left Panel - Drawing Controls -->
+            <div class="left-panel panel">
+                <div class="panel-header">
+                    <span class="icon">✎</span>
+                    Dibujo de Terreno
+                </div>
+                <div class="panel-content">
+                    <div class="draw-instructions">
+                        <strong>Click:</strong> Agregar vértice<br>
+                        <strong>Doble click:</strong> Cerrar polígono<br>
+                        <strong>Mín. 3 puntos</strong> para generar
+                    </div>
+
+                    <div class="btn-group" style="margin-bottom: 16px;">
+                        <button class="btn" :class="drawMode ? 'btn-warning' : 'btn-primary'" @click="toggleDrawMode">
+                            {{ drawMode ? '⏹ Detener' : '✎ Dibujar' }}
+                        </button>
+                        <button class="btn btn-danger" @click="clearPolygon" :disabled="vertices.length === 0">
+                            ✕ Limpiar
+                        </button>
+                    </div>
+
+                    <div v-if="vertices.length > 0">
+                        <div class="section-title">Vértices ({{ vertices.length }})</div>
+                        <div class="vertices-list">
+                            <div class="vertex-item" v-for="(v, i) in vertices" :key="i">
+                                <span>P{{ i + 1 }}</span>
+                                <span>X: {{ v.x.toFixed(2) }}, Z: {{ v.z.toFixed(2) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <button class="btn btn-success btn-block" @click="generateModel" :disabled="!canGenerate">
+                        ⚡ Generar Modelo
+                    </button>
+
+                    <div v-if="modelGenerated" style="margin-top: 12px;">
+                        <button class="btn btn-secondary btn-block" @click="downloadModel">
+                            ⬇ Descargar GLB
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Parameters -->
+            <div class="right-panel panel">
+                <div class="panel-header">
+                    <span class="icon">⚙</span>
+                    Parámetros Normativos
+                </div>
+                <div class="panel-content">
+                    <!-- Alerts -->
+                    <div v-if="errorMessage" class="alert alert-error">
+                        ⚠ {{ errorMessage }}
+                    </div>
+                    <div v-if="warningMessage" class="alert alert-warning">
+                        ⚡ {{ warningMessage }}
+                    </div>
+
+                    <!-- Setback -->
+                    <div class="section-title">Distanciamiento</div>
+                    <div class="form-group">
+                        <label class="form-label">Setback a deslindes (m)</label>
+                        <div class="form-row">
+                            <input type="range" v-model.number="params.setback" min="0" max="10" step="0.5">
+                            <span class="range-value">{{ params.setback }} m</span>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Height -->
+                    <div class="section-title">Altura</div>
+                    <div class="form-group">
+                        <label class="form-label">Altura máxima (m)</label>
+                        <div class="form-row">
+                            <input type="range" v-model.number="params.maxHeight" min="3" max="100" step="1">
+                            <span class="range-value">{{ params.maxHeight }} m</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Altura de piso teórica (m)</label>
+                        <div class="form-row">
+                            <input type="range" v-model.number="params.floorHeight" min="2.5" max="5" step="0.1">
+                            <span class="range-value">{{ params.floorHeight }} m</span>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Coefficients -->
+                    <div class="section-title">Coeficientes</div>
+                    <div class="form-group">
+                        <label class="form-label">COS - Coef. Ocupación de Suelo</label>
+                        <div class="form-row">
+                            <input type="range" v-model.number="params.cos" min="0.1" max="1" step="0.05">
+                            <span class="range-value">{{ (params.cos * 100).toFixed(0) }}%</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">CC - Coef. Constructibilidad</label>
+                        <div class="form-row">
+                            <input type="range" v-model.number="params.cc" min="0.5" max="15" step="0.5">
+                            <span class="range-value">{{ params.cc }}</span>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Rasantes -->
+                    <div class="section-title">Rasantes</div>
+                    <div class="form-group">
+                        <div class="toggle-group">
+                            <label class="form-label" style="margin-bottom: 0;">Aplicar rasantes</label>
+                            <label class="toggle">
+                                <input type="checkbox" v-model="params.rasantesEnabled">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group" v-if="params.rasantesEnabled">
+                        <label class="form-label">Ángulo de rasante (°)</label>
+                        <div class="form-row">
+                            <input type="range" v-model.number="params.rasanteAngle" min="45" max="89" step="1">
+                            <span class="range-value">{{ params.rasanteAngle }}°</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group" v-if="params.rasantesEnabled">
+                        <label class="form-label">Altura inicio rasante (m)</label>
+                        <div class="form-row">
+                            <input type="range" v-model.number="params.rasanteStartHeight" min="0" max="20" step="0.5">
+                            <span class="range-value">{{ params.rasanteStartHeight }} m</span>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Visual Options -->
+                    <div class="section-title">Visualización</div>
+                    <div class="form-group">
+                        <div class="toggle-group">
+                            <label class="form-label" style="margin-bottom: 0;">Mostrar terreno</label>
+                            <label class="toggle">
+                                <input type="checkbox" v-model="visual.showTerrain">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="toggle-group">
+                            <label class="form-label" style="margin-bottom: 0;">Mostrar huella</label>
+                            <label class="toggle">
+                                <input type="checkbox" v-model="visual.showFootprint">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="toggle-group">
+                            <label class="form-label" style="margin-bottom: 0;">Modo wireframe</label>
+                            <label class="toggle">
+                                <input type="checkbox" v-model="visual.wireframe">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Panel - Results -->
+            <div class="bottom-panel panel" v-if="results.areaTerreno > 0">
+                <div class="panel-header">
+                    <span class="icon">📊</span>
+                    Resultados
+                </div>
+                <div class="panel-content">
+                    <div class="results-grid">
+                        <div class="result-item">
+                            <div class="result-label">Área Terreno</div>
+                            <div class="result-value">{{ results.areaTerreno.toFixed(2) }}<span class="result-unit">m²</span></div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">Huella Edific.</div>
+                            <div class="result-value">{{ results.areaHuella.toFixed(2) }}<span class="result-unit">m²</span></div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">Sup. Máx Edific.</div>
+                            <div class="result-value">{{ results.supMaxEdificable.toFixed(2) }}<span class="result-unit">m²</span></div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">Altura Usada</div>
+                            <div class="result-value">{{ results.alturaUsada.toFixed(2) }}<span class="result-unit">m</span></div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">Pisos Teóricos</div>
+                            <div class="result-value">{{ results.pisosteoricos }}<span class="result-unit">N°</span></div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">Volumen</div>
+                            <div class="result-value">{{ results.volumen.toFixed(2) }}<span class="result-unit">m³</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coordinate Display -->
+            <div class="coord-display" v-if="drawMode">
+                X: {{ mouseCoords.x.toFixed(2) }} | Z: {{ mouseCoords.z.toFixed(2) }}
+            </div>
+
+            <!-- Loading Overlay -->
+            <div class="loading-overlay" v-if="isLoading">
+                <div class="spinner"></div>
+                <div class="loading-text">{{ loadingText }}</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+            "three-mesh-bvh": "https://unpkg.com/three-mesh-bvh@0.7.0/build/index.module.js",
+            "three-bvh-csg": "https://unpkg.com/three-bvh-csg@0.0.16/build/index.module.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import { createApp, ref, reactive, computed, watch, onMounted, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+        import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
+        import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
+
+        // Extend THREE.BufferGeometry for BVH
+        THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+        THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+        THREE.Mesh.prototype.raycast = acceleratedRaycast;
+
+        const app = createApp({
+            setup() {
+                // Refs
+                const viewportRef = ref(null);
+                const canvasRef = ref(null);
+                const drawCanvasRef = ref(null);
+
+                // State
+                const drawMode = ref(false);
+                const isLoading = ref(false);
+                const loadingText = ref('Cargando...');
+                const modelGenerated = ref(false);
+                const errorMessage = ref('');
+                const warningMessage = ref('');
+
+                // Vertices for polygon
+                const vertices = ref([]);
+                const polygonClosed = ref(false);
+
+                // Mouse coordinates
+                const mouseCoords = reactive({ x: 0, z: 0 });
+
+                // Parameters
+                const params = reactive({
+                    setback: 3,
+                    maxHeight: 35,
+                    floorHeight: 3.2,
+                    cos: 0.6,
+                    cc: 4,
+                    rasantesEnabled: true,
+                    rasanteAngle: 70,
+                    rasanteStartHeight: 3.5
+                });
+
+                // Visual options
+                const visual = reactive({
+                    showTerrain: true,
+                    showFootprint: true,
+                    wireframe: false
+                });
+
+                // Results
+                const results = reactive({
+                    areaTerreno: 0,
+                    areaHuella: 0,
+                    supMaxEdificable: 0,
+                    alturaUsada: 0,
+                    pisosteoricos: 0,
+                    volumen: 0
+                });
+
+                // Three.js objects
+                let scene, camera, renderer, controls;
+                let terrainLine, footprintLine, volumeMesh;
+                let drawCtx;
+                let csgEvaluator;
+                let generatedMesh = null;
+
+                // Status computed
+                const statusClass = computed(() => {
+                    if (errorMessage.value) return 'error';
+                    if (warningMessage.value) return 'warning';
+                    if (modelGenerated.value) return 'active';
+                    return 'inactive';
+                });
+
+                const statusText = computed(() => {
+                    if (errorMessage.value) return 'Error';
+                    if (warningMessage.value) return 'Advertencia';
+                    if (modelGenerated.value) return 'Modelo generado';
+                    if (polygonClosed.value) return 'Listo para generar';
+                    if (vertices.value.length > 0) return `Dibujando (${vertices.value.length} pts)`;
+                    return 'Sin terreno';
+                });
+
+                const canGenerate = computed(() => {
+                    return polygonClosed.value && vertices.value.length >= 3;
+                });
+
+                const isFileProtocol = window.location.protocol === 'file:';
+
+                // Initialize Three.js
+                function initThree() {
+                    const canvas = canvasRef.value;
+                    const viewport = viewportRef.value;
+
+                    // Scene
+                    scene = new THREE.Scene();
+                    scene.background = new THREE.Color(0x0f0f23);
+
+                    // Camera
+                    camera = new THREE.PerspectiveCamera(
+                        45,
+                        viewport.clientWidth / viewport.clientHeight,
+                        0.1,
+                        1000
+                    );
+                    camera.position.set(50, 40, 50);
+
+                    // Renderer
+                    renderer = new THREE.WebGLRenderer({ 
+                        canvas, 
+                        antialias: true,
+                        alpha: true
+                    });
+                    renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+                    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                    renderer.shadowMap.enabled = true;
+                    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+                    // Controls
+                    controls = new OrbitControls(camera, canvas);
+                    controls.enableDamping = true;
+                    controls.dampingFactor = 0.05;
+                    controls.maxPolarAngle = Math.PI / 2 - 0.05;
+
+                    // Lights
+                    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+                    scene.add(ambientLight);
+
+                    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                    directionalLight.position.set(50, 100, 50);
+                    directionalLight.castShadow = true;
+                    directionalLight.shadow.mapSize.width = 2048;
+                    directionalLight.shadow.mapSize.height = 2048;
+                    directionalLight.shadow.camera.near = 0.5;
+                    directionalLight.shadow.camera.far = 500;
+                    directionalLight.shadow.camera.left = -100;
+                    directionalLight.shadow.camera.right = 100;
+                    directionalLight.shadow.camera.top = 100;
+                    directionalLight.shadow.camera.bottom = -100;
+                    scene.add(directionalLight);
+
+                    // Grid helper
+                    const gridHelper = new THREE.GridHelper(100, 100, 0x334155, 0x1e1e3f);
+                    scene.add(gridHelper);
+
+                    // Axes helper
+                    const axesHelper = new THREE.AxesHelper(10);
+                    scene.add(axesHelper);
+
+                    // Ground plane for raycasting
+                    const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
+                    const groundMaterial = new THREE.MeshBasicMaterial({ 
+                        visible: false,
+                        side: THREE.DoubleSide
+                    });
+                    const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
+                    groundMesh.rotation.x = -Math.PI / 2;
+                    groundMesh.name = 'ground';
+                    scene.add(groundMesh);
+
+                    // Initialize CSG evaluator
+                    csgEvaluator = new Evaluator();
+
+                    // Handle resize
+                    window.addEventListener('resize', onResize);
+
+                    // Animation loop
+                    animate();
+                }
+
+                function onResize() {
+                    const viewport = viewportRef.value;
+                    if (!viewport) return;
+
+                    camera.aspect = viewport.clientWidth / viewport.clientHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+
+                    // Resize draw canvas
+                    const drawCanvas = drawCanvasRef.value;
+                    drawCanvas.width = viewport.clientWidth;
+                    drawCanvas.height = viewport.clientHeight;
+                    redrawCanvas();
+                }
+
+                function animate() {
+                    requestAnimationFrame(animate);
+                    controls.update();
+                    renderer.render(scene, camera);
+                }
+
+                // Initialize draw canvas
+                function initDrawCanvas() {
+                    const drawCanvas = drawCanvasRef.value;
+                    const viewport = viewportRef.value;
+                    drawCanvas.width = viewport.clientWidth;
+                    drawCanvas.height = viewport.clientHeight;
+                    drawCtx = drawCanvas.getContext('2d');
+                }
+
+                // Draw mode toggle
+                function toggleDrawMode() {
+                    drawMode.value = !drawMode.value;
+                    if (drawMode.value) {
+                        controls.enabled = false;
+                        polygonClosed.value = false;
+                    } else {
+                        controls.enabled = true;
+                    }
+                    redrawCanvas();
+                }
+
+                // Mouse move handler
+                function onDrawMouseMove(event) {
+                    if (!drawMode.value) return;
+
+                    const rect = event.target.getBoundingClientRect();
+                    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                    const raycaster = new THREE.Raycaster();
+                    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+
+                    const ground = scene.getObjectByName('ground');
+                    const intersects = raycaster.intersectObject(ground);
+
+                    if (intersects.length > 0) {
+                        mouseCoords.x = intersects[0].point.x;
+                        mouseCoords.z = intersects[0].point.z;
+                        redrawCanvas();
+                    }
+                }
+
+                // Click handler for adding vertices
+                function onDrawClick(event) {
+                    if (!drawMode.value || polygonClosed.value) return;
+
+                    const rect = event.target.getBoundingClientRect();
+                    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                    const raycaster = new THREE.Raycaster();
+                    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+
+                    const ground = scene.getObjectByName('ground');
+                    const intersects = raycaster.intersectObject(ground);
+
+                    if (intersects.length > 0) {
+                        const point = intersects[0].point;
+                        vertices.value.push({ x: point.x, z: point.z });
+                        updateTerrainLine();
+                        redrawCanvas();
+                    }
+                }
+
+                // Double click to close polygon
+                function onDrawDoubleClick(event) {
+                    if (!drawMode.value) return;
+                    if (vertices.value.length >= 3) {
+                        polygonClosed.value = true;
+                        drawMode.value = false;
+                        controls.enabled = true;
+                        updateTerrainLine();
+                        redrawCanvas();
+                        calculateResults();
+                    } else {
+                        errorMessage.value = 'Se necesitan al menos 3 puntos para cerrar el polígono';
+                        setTimeout(() => errorMessage.value = '', 3000);
+                    }
+                }
+
+                // Clear polygon
+                function clearPolygon() {
+                    vertices.value = [];
+                    polygonClosed.value = false;
+                    modelGenerated.value = false;
+                    errorMessage.value = '';
+                    warningMessage.value = '';
+                    
+                    // Reset results
+                    Object.keys(results).forEach(key => results[key] = 0);
+
+                    // Clear 3D objects
+                    if (terrainLine) {
+                        scene.remove(terrainLine);
+                        terrainLine = null;
+                    }
+                    if (footprintLine) {
+                        scene.remove(footprintLine);
+                        footprintLine = null;
+                    }
+                    if (volumeMesh) {
+                        scene.remove(volumeMesh);
+                        volumeMesh = null;
+                    }
+                    generatedMesh = null;
+
+                    redrawCanvas();
+                }
+
+                // Redraw canvas overlay
+                function redrawCanvas() {
+                    if (!drawCtx) return;
+                    const canvas = drawCanvasRef.value;
+                    drawCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    if (!drawMode.value && !vertices.value.length) return;
+
+                    // Draw existing vertices and lines
+                    drawCtx.strokeStyle = '#00d4ff';
+                    drawCtx.fillStyle = '#00d4ff';
+                    drawCtx.lineWidth = 2;
+
+                    const screenPoints = vertices.value.map(v => {
+                        const vec = new THREE.Vector3(v.x, 0, v.z);
+                        vec.project(camera);
+                        return {
+                            x: (vec.x + 1) / 2 * canvas.width,
+                            y: (-vec.y + 1) / 2 * canvas.height
+                        };
+                    });
+
+                    // Draw lines
+                    if (screenPoints.length > 1) {
+                        drawCtx.beginPath();
+                        drawCtx.moveTo(screenPoints[0].x, screenPoints[0].y);
+                        for (let i = 1; i < screenPoints.length; i++) {
+                            drawCtx.lineTo(screenPoints[i].x, screenPoints[i].y);
+                        }
+                        if (polygonClosed.value) {
+                            drawCtx.closePath();
+                        }
+                        drawCtx.stroke();
+                    }
+
+                    // Draw vertices
+                    screenPoints.forEach((p, i) => {
+                        drawCtx.beginPath();
+                        drawCtx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+                        drawCtx.fill();
+                        
+                        // Label
+                        drawCtx.fillStyle = '#e2e8f0';
+                        drawCtx.font = '12px sans-serif';
+                        drawCtx.fillText(`P${i + 1}`, p.x + 10, p.y - 10);
+                        drawCtx.fillStyle = '#00d4ff';
+                    });
+
+                    // Draw cursor preview line
+                    if (drawMode.value && screenPoints.length > 0 && !polygonClosed.value) {
+                        const cursorVec = new THREE.Vector3(mouseCoords.x, 0, mouseCoords.z);
+                        cursorVec.project(camera);
+                        const cursorScreen = {
+                            x: (cursorVec.x + 1) / 2 * canvas.width,
+                            y: (-cursorVec.y + 1) / 2 * canvas.height
+                        };
+
+                        drawCtx.setLineDash([5, 5]);
+                        drawCtx.strokeStyle = 'rgba(0, 212, 255, 0.5)';
+                        drawCtx.beginPath();
+                        drawCtx.moveTo(screenPoints[screenPoints.length - 1].x, screenPoints[screenPoints.length - 1].y);
+                        drawCtx.lineTo(cursorScreen.x, cursorScreen.y);
+                        drawCtx.stroke();
+                        drawCtx.setLineDash([]);
+                    }
+                }
+
+                // Update terrain line in 3D
+                function updateTerrainLine() {
+                    if (terrainLine) {
+                        scene.remove(terrainLine);
+                    }
+
+                    if (vertices.value.length < 2) return;
+
+                    const points = vertices.value.map(v => new THREE.Vector3(v.x, 0.05, v.z));
+                    if (polygonClosed.value) {
+                        points.push(points[0].clone());
+                    }
+
+                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                    const material = new THREE.LineBasicMaterial({ 
+                        color: 0x00d4ff, 
+                        linewidth: 2 
+                    });
+                    terrainLine = new THREE.Line(geometry, material);
+                    terrainLine.visible = visual.showTerrain;
+                    scene.add(terrainLine);
+                }
+
+                // Calculate polygon area (Shoelace formula)
+                function calculatePolygonArea(verts) {
+                    let area = 0;
+                    const n = verts.length;
+                    for (let i = 0; i < n; i++) {
+                        const j = (i + 1) % n;
+                        area += verts[i].x * verts[j].z;
+                        area -= verts[j].x * verts[i].z;
+                    }
+                    return Math.abs(area / 2);
+                }
+
+                // Offset polygon inward (simple implementation)
+                function offsetPolygon(verts, distance) {
+                    if (distance <= 0) return [...verts];
+                    
+                    const n = verts.length;
+                    const result = [];
+
+                    // Check if polygon is clockwise
+                    let sum = 0;
+                    for (let i = 0; i < n; i++) {
+                        const j = (i + 1) % n;
+                        sum += (verts[j].x - verts[i].x) * (verts[j].z + verts[i].z);
+                    }
+                    const isClockwise = sum > 0;
+
+                    for (let i = 0; i < n; i++) {
+                        const prev = (i - 1 + n) % n;
+                        const next = (i + 1) % n;
+
+                        // Direction vectors
+                        const d1 = {
+                            x: verts[i].x - verts[prev].x,
+                            z: verts[i].z - verts[prev].z
+                        };
+                        const d2 = {
+                            x: verts[next].x - verts[i].x,
+                            z: verts[next].z - verts[i].z
+                        };
+
+                        // Normalize
+                        const len1 = Math.sqrt(d1.x * d1.x + d1.z * d1.z);
+                        const len2 = Math.sqrt(d2.x * d2.x + d2.z * d2.z);
+                        
+                        if (len1 < 0.001 || len2 < 0.001) {
+                            result.push({ ...verts[i] });
+                            continue;
+                        }
+
+                        d1.x /= len1; d1.z /= len1;
+                        d2.x /= len2; d2.z /= len2;
+
+                        // Normals (perpendicular, pointing inward)
+                        let n1, n2;
+                        if (isClockwise) {
+                            n1 = { x: d1.z, z: -d1.x };
+                            n2 = { x: d2.z, z: -d2.x };
+                        } else {
+                            n1 = { x: -d1.z, z: d1.x };
+                            n2 = { x: -d2.z, z: d2.x };
+                        }
+
+                        // Bisector
+                        const bisector = {
+                            x: n1.x + n2.x,
+                            z: n1.z + n2.z
+                        };
+                        const bisectorLen = Math.sqrt(bisector.x * bisector.x + bisector.z * bisector.z);
+                        
+                        if (bisectorLen < 0.001) {
+                            bisector.x = n1.x;
+                            bisector.z = n1.z;
+                        } else {
+                            bisector.x /= bisectorLen;
+                            bisector.z /= bisectorLen;
+                        }
+
+                        // Angle between normals
+                        const dot = n1.x * n2.x + n1.z * n2.z;
+                        const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
+                        const miter = distance / Math.cos(angle / 2);
+
+                        // Limit miter to prevent spikes
+                        const maxMiter = distance * 3;
+                        const finalDist = Math.min(miter, maxMiter);
+
+                        result.push({
+                            x: verts[i].x + bisector.x * finalDist,
+                            z: verts[i].z + bisector.z * finalDist
+                        });
+                    }
+
+                    // Validate result (check for self-intersection or collapse)
+                    const resultArea = calculatePolygonArea(result);
+                    if (resultArea < 1) {
+                        return null; // Collapsed
+                    }
+
+                    return result;
+                }
+
+                // Create extruded geometry from polygon
+                function createExtrudedGeometry(verts, height) {
+                    const shape = new THREE.Shape();
+                    shape.moveTo(verts[0].x, verts[0].z);
+                    for (let i = 1; i < verts.length; i++) {
+                        shape.lineTo(verts[i].x, verts[i].z);
+                    }
+                    shape.closePath();
+
+                    const extrudeSettings = {
+                        steps: 1,
+                        depth: height,
+                        bevelEnabled: false
+                    };
+
+                    const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+                    geometry.rotateX(-Math.PI / 2);
+                    
+                    return geometry;
+                }
+
+                // Calculate results
+                function calculateResults() {
+                    if (vertices.value.length < 3) return;
+
+                    const areaTerreno = calculatePolygonArea(vertices.value);
+                    results.areaTerreno = areaTerreno;
+
+                    // Calculate footprint with setback
+                    const footprint = offsetPolygon(vertices.value, params.setback);
+                    if (!footprint) {
+                        errorMessage.value = 'El setback es demasiado grande, colapsa el polígono';
+                        results.areaHuella = 0;
+                        return;
+                    }
+
+                    const areaHuella = calculatePolygonArea(footprint);
+                    
+                    // Apply COS
+                    const maxHuellaByCOS = areaTerreno * params.cos;
+                    const finalHuella = Math.min(areaHuella, maxHuellaByCOS);
+                    results.areaHuella = finalHuella;
+
+                    // Calculate max buildable surface (CC)
+                    results.supMaxEdificable = areaTerreno * params.cc;
+
+                    // Calculate height
+                    const heightByCC = results.supMaxEdificable / finalHuella;
+                    const alturaUsada = Math.min(params.maxHeight, heightByCC);
+                    results.alturaUsada = alturaUsada;
+
+                    // Floors
+                    results.pisosteoricos = Math.floor(alturaUsada / params.floorHeight);
+
+                    // Volume (approximate, before rasantes)
+                    results.volumen = finalHuella * alturaUsada;
+                }
+
+                // Generate 3D model
+                async function generateModel() {
+                    if (!canGenerate.value) return;
+
+                    isLoading.value = true;
+                    loadingText.value = 'Calculando volumetría...';
+                    errorMessage.value = '';
+                    warningMessage.value = '';
+
+                    await nextTick();
+
+                    try {
+                        // Remove existing mesh
+                        if (volumeMesh) {
+                            scene.remove(volumeMesh);
+                            volumeMesh = null;
+                        }
+                        if (footprintLine) {
+                            scene.remove(footprintLine);
+                            footprintLine = null;
+                        }
+
+                        // Calculate footprint
+                        let footprint = offsetPolygon(vertices.value, params.setback);
+                        if (!footprint) {
+                            throw new Error('El setback colapsa el polígono. Reduce el valor.');
+                        }
+
+                        // Apply COS if needed
+                        const areaTerreno = calculatePolygonArea(vertices.value);
+                        const areaHuella = calculatePolygonArea(footprint);
+                        const maxHuellaByCOS = areaTerreno * params.cos;
+
+                        if (areaHuella > maxHuellaByCOS) {
+                            // Need to further reduce footprint - simple scale approach
+                            const scale = Math.sqrt(maxHuellaByCOS / areaHuella);
+                            const centroid = footprint.reduce((acc, v) => ({
+                                x: acc.x + v.x / footprint.length,
+                                z: acc.z + v.z / footprint.length
+                            }), { x: 0, z: 0 });
+
+                            footprint = footprint.map(v => ({
+                                x: centroid.x + (v.x - centroid.x) * scale,
+                                z: centroid.z + (v.z - centroid.z) * scale
+                            }));
+                        }
+
+                        // Calculate height
+                        const finalHuella = calculatePolygonArea(footprint);
+                        const heightByCC = (areaTerreno * params.cc) / finalHuella;
+                        const alturaUsada = Math.min(params.maxHeight, heightByCC);
+
+                        // Create footprint line
+                        const footprintPoints = footprint.map(v => new THREE.Vector3(v.x, 0.1, v.z));
+                        footprintPoints.push(footprintPoints[0].clone());
+                        const footprintGeom = new THREE.BufferGeometry().setFromPoints(footprintPoints);
+                        const footprintMat = new THREE.LineBasicMaterial({ color: 0x10b981 });
+                        footprintLine = new THREE.Line(footprintGeom, footprintMat);
+                        footprintLine.visible = visual.showFootprint;
+                        scene.add(footprintLine);
+
+                        // Create base prism
+                        loadingText.value = 'Generando prisma base...';
+                        await nextTick();
+
+                        const baseGeometry = createExtrudedGeometry(footprint, alturaUsada);
+                        const baseMaterial = new THREE.MeshStandardMaterial({
+                            color: 0x7c3aed,
+                            metalness: 0.1,
+                            roughness: 0.7,
+                            wireframe: visual.wireframe,
+                            side: THREE.DoubleSide
+                        });
+
+                        let finalMesh;
+                        let csgSuccess = true;
+
+                        // Apply rasantes if enabled
+                        if (params.rasantesEnabled) {
+                            loadingText.value = 'Aplicando rasantes CSG...';
+                            await nextTick();
+
+                            try {
+                                // Create brush from base geometry
+                                let resultBrush = new Brush(baseGeometry.clone(), baseMaterial);
+                                resultBrush.updateMatrixWorld();
+
+                                const n = footprint.length;
+                                const cutterHeight = alturaUsada * 3;
+                                const cutterDepth = 200;
+                                const cutterWidth = 200;
+
+                                for (let i = 0; i < n; i++) {
+                                    const current = footprint[i];
+                                    const next = footprint[(i + 1) % n];
+
+                                    // Edge direction
+                                    const edgeDir = {
+                                        x: next.x - current.x,
+                                        z: next.z - current.z
+                                    };
+                                    const edgeLen = Math.sqrt(edgeDir.x * edgeDir.x + edgeDir.z * edgeDir.z);
+                                    if (edgeLen < 0.01) continue;
+
+                                    edgeDir.x /= edgeLen;
+                                    edgeDir.z /= edgeLen;
+
+                                    // Midpoint
+                                    const midpoint = {
+                                        x: (current.x + next.x) / 2,
+                                        z: (current.z + next.z) / 2
+                                    };
+
+                                    // Interior normal (perpendicular to edge, pointing inward)
+                                    // Determine interior direction using centroid
+                                    const centroid = footprint.reduce((acc, v) => ({
+                                        x: acc.x + v.x / n,
+                                        z: acc.z + v.z / n
+                                    }), { x: 0, z: 0 });
+
+                                    let normalX = -edgeDir.z;
+                                    let normalZ = edgeDir.x;
+
+                                    // Check if normal points toward centroid
+                                    const toCentroid = {
+                                        x: centroid.x - midpoint.x,
+                                        z: centroid.z - midpoint.z
+                                    };
+                                    const dot = normalX * toCentroid.x + normalZ * toCentroid.z;
+                                    if (dot < 0) {
+                                        normalX = -normalX;
+                                        normalZ = -normalZ;
+                                    }
+
+                                    // Create cutter box
+                                    const cutterGeometry = new THREE.BoxGeometry(cutterWidth, cutterHeight, cutterDepth);
+                                    const cutterBrush = new Brush(cutterGeometry, baseMaterial);
+
+                                    // Position cutter
+                                    // Start from rasante height, offset outward
+                                    const startY = params.rasanteStartHeight;
+                                    const angleRad = (90 - params.rasanteAngle) * Math.PI / 180;
+
+                                    // Calculate rotation angle for Y axis (to align with edge)
+                                    const yRotation = Math.atan2(edgeDir.x, edgeDir.z);
+
+                                    // Position the cutter outside the footprint
+                                    const offsetDist = cutterDepth / 2;
+                                    cutterBrush.position.set(
+                                        midpoint.x - normalX * offsetDist,
+                                        startY + cutterHeight / 2 * Math.cos(angleRad),
+                                        midpoint.z - normalZ * offsetDist
+                                    );
+
+                                    // Rotate to align with edge
+                                    cutterBrush.rotation.y = yRotation;
+                                    // Tilt for rasante angle
+                                    cutterBrush.rotation.x = angleRad;
+
+                                    cutterBrush.updateMatrixWorld();
+
+                                    // Perform CSG subtraction
+                                    try {
+                                        const newResult = csgEvaluator.evaluate(resultBrush, cutterBrush, SUBTRACTION);
+                                        if (newResult && newResult.geometry) {
+                                            resultBrush.geometry.dispose();
+                                            resultBrush = newResult;
+                                            resultBrush.updateMatrixWorld();
+                                        }
+                                    } catch (csgError) {
+                                        console.warn(`CSG failed for edge ${i}:`, csgError);
+                                    }
+                                }
+
+                                // Create final mesh from CSG result
+                                finalMesh = new THREE.Mesh(resultBrush.geometry, baseMaterial);
+                            } catch (csgError) {
+                                console.error('CSG Error:', csgError);
+                                csgSuccess = false;
+                                warningMessage.value = 'CSG falló. Mostrando prisma base sin rasantes.';
+                                finalMesh = new THREE.Mesh(baseGeometry, baseMaterial);
+                            }
+                        } else {
+                            finalMesh = new THREE.Mesh(baseGeometry, baseMaterial);
+                        }
+
+                        // Add mesh to scene
+                        finalMesh.castShadow = true;
+                        finalMesh.receiveShadow = true;
+                        volumeMesh = finalMesh;
+                        generatedMesh = finalMesh;
+                        scene.add(volumeMesh);
+
+                        // Update results
+                        calculateResults();
+                        
+                        // Recalculate volume from actual geometry if possible
+                        if (finalMesh.geometry) {
+                            try {
+                                const vol = calculateMeshVolume(finalMesh.geometry);
+                                if (vol > 0) {
+                                    results.volumen = vol;
+                                }
+                            } catch (e) {
+                                // Keep approximate volume
+                            }
+                        }
+
+                        modelGenerated.value = true;
+
+                        // Center camera on model
+                        const box = new THREE.Box3().setFromObject(volumeMesh);
+                        const center = box.getCenter(new THREE.Vector3());
+                        const size = box.getSize(new THREE.Vector3());
+                        const maxDim = Math.max(size.x, size.y, size.z);
+                        
+                        controls.target.copy(center);
+                        camera.position.set(
+                            center.x + maxDim * 1.5,
+                            center.y + maxDim,
+                            center.z + maxDim * 1.5
+                        );
+                        controls.update();
+
+                    } catch (error) {
+                        console.error('Error generating model:', error);
+                        errorMessage.value = error.message || 'Error al generar el modelo';
+                    } finally {
+                        isLoading.value = false;
+                    }
+                }
+
+                // Calculate mesh volume
+                function calculateMeshVolume(geometry) {
+                    if (!geometry.index) {
+                        geometry = geometry.toNonIndexed();
+                    }
+
+                    const position = geometry.getAttribute('position');
+                    let volume = 0;
+
+                    for (let i = 0; i < position.count; i += 3) {
+                        const p1 = new THREE.Vector3().fromBufferAttribute(position, i);
+                        const p2 = new THREE.Vector3().fromBufferAttribute(position, i + 1);
+                        const p3 = new THREE.Vector3().fromBufferAttribute(position, i + 2);
+
+                        volume += signedVolumeOfTriangle(p1, p2, p3);
+                    }
+
+                    return Math.abs(volume);
+                }
+
+                function signedVolumeOfTriangle(p1, p2, p3) {
+                    return p1.dot(p2.cross(p3)) / 6;
+                }
+
+                // Download model as GLB
+                function downloadModel() {
+                    if (!generatedMesh) {
+                        errorMessage.value = 'No hay modelo para descargar';
+                        return;
+                    }
+
+                    isLoading.value = true;
+                    loadingText.value = 'Exportando GLB...';
+
+                    const exporter = new GLTFExporter();
+                    
+                    // Create a group with the mesh
+                    const exportGroup = new THREE.Group();
+                    const meshClone = generatedMesh.clone();
+                    exportGroup.add(meshClone);
+
+                    exporter.parse(
+                        exportGroup,
+                        (gltf) => {
+                            const blob = new Blob([gltf], { type: 'application/octet-stream' });
+                            const url = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = 'volumetria_cabida.glb';
+                            link.click();
+                            URL.revokeObjectURL(url);
+                            isLoading.value = false;
+                        },
+                        (error) => {
+                            console.error('Export error:', error);
+                            errorMessage.value = 'Error al exportar el modelo';
+                            isLoading.value = false;
+                        },
+                        { binary: true }
+                    );
+                }
+
+                // Watch for visual changes
+                watch(() => visual.showTerrain, (val) => {
+                    if (terrainLine) terrainLine.visible = val;
+                });
+
+                watch(() => visual.showFootprint, (val) => {
+                    if (footprintLine) footprintLine.visible = val;
+                });
+
+                watch(() => visual.wireframe, (val) => {
+                    if (volumeMesh && volumeMesh.material) {
+                        volumeMesh.material.wireframe = val;
+                    }
+                });
+
+                // Watch params for result updates
+                watch(params, () => {
+                    if (polygonClosed.value) {
+                        calculateResults();
+                    }
+                }, { deep: true });
+
+                // Lifecycle
+                onMounted(() => {
+                    initThree();
+                    initDrawCanvas();
+                    
+                    // Redraw canvas on camera change
+                    controls.addEventListener('change', redrawCanvas);
+                });
+
+                return {
+                    viewportRef,
+                    canvasRef,
+                    drawCanvasRef,
+                    drawMode,
+                    isLoading,
+                    loadingText,
+                    modelGenerated,
+                    errorMessage,
+                    warningMessage,
+                    vertices,
+                    polygonClosed,
+                    mouseCoords,
+                    params,
+                    visual,
+                    results,
+                    statusClass,
+                    statusText,
+                    canGenerate,
+                    isFileProtocol,
+                    toggleDrawMode,
+                    onDrawClick,
+                    onDrawDoubleClick,
+                    onDrawMouseMove,
+                    clearPolygon,
+                    generateModel,
+                    downloadModel
+                };
+            }
+        });
+
+        app.mount('#app');
+    </script>
+</body>
+</html>
