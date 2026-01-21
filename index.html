@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Generador de Volumen por Rectángulo</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="app__header">
+        <h1>Genera un volumen dibujando un rectángulo</h1>
+        <p>
+          Dibuja un rectángulo en el lienzo y ajusta la profundidad para calcular
+          el volumen del prisma rectangular.
+        </p>
+      </header>
+
+      <section class="app__content">
+        <div class="canvas-panel">
+          <div class="canvas-panel__toolbar">
+            <button id="clear" type="button">Limpiar</button>
+            <span id="hint">Haz clic y arrastra para dibujar.</span>
+          </div>
+          <canvas id="draw-area" width="640" height="420" aria-label="Área de dibujo"></canvas>
+        </div>
+
+        <aside class="controls">
+          <label class="controls__field">
+            Profundidad (cm)
+            <input id="depth" type="number" min="1" value="10" />
+          </label>
+          <div class="controls__stats">
+            <div>
+              <span class="label">Ancho</span>
+              <span id="width-value">0 cm</span>
+            </div>
+            <div>
+              <span class="label">Alto</span>
+              <span id="height-value">0 cm</span>
+            </div>
+            <div>
+              <span class="label">Área</span>
+              <span id="area-value">0 cm²</span>
+            </div>
+            <div>
+              <span class="label">Volumen</span>
+              <span id="volume-value">0 cm³</span>
+            </div>
+          </div>
+          <p class="controls__note">
+            El volumen se calcula multiplicando el área del rectángulo por la
+            profundidad indicada.
+          </p>
+        </aside>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
